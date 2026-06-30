@@ -9,22 +9,20 @@
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;background:var(--bg);color:var(--ink)}
   .wrap{max-width:480px;margin:0 auto;padding:16px;min-height:100vh}
-  .center{min-height:80vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  .center{min-height:84vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
   .spin{width:34px;height:34px;border:3px solid #d8e0d6;border-top-color:var(--line);border-radius:50%;animation:r 1s linear infinite}
   @keyframes r{to{transform:rotate(360deg)}}
   .logo{font-size:22px;font-weight:700}
   .avatar{width:68px;height:68px;border-radius:50%;background:var(--line);display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px;font-weight:700;margin:0 auto 14px}
   .badge{display:inline-block;background:#e1f5ee;color:#0f6e56;font-size:12px;padding:5px 14px;border-radius:20px;margin-top:8px}
   .muted{color:var(--muted);font-size:13px;line-height:1.8;margin-top:16px}
-  #dbg{margin-top:18px;font-size:12px;color:#5f5e5a;background:#fff;border:1px solid #e3e8df;border-radius:10px;padding:10px 12px;text-align:left;white-space:pre-wrap;max-width:440px;width:100%}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div id="loading" class="center">
     <div class="spin"></div>
-    <p class="muted" id="stepmsg">起動中…</p>
-    <div id="dbg">診断ログ:</div>
+    <p class="muted">読み込んでいます…</p>
   </div>
   <div id="app" style="display:none"></div>
 </div>
@@ -35,12 +33,10 @@ var LIFF_ID = '2010559900-FcTcICFR';
 var GAS_API = 'https://script.google.com/macros/s/AKfycbzaagEpwf0mENB58Jb0LLd42iHdtONRytp2Qhx8BK8mxcEap0EKerpvdkkUa2PnvuVV/exec';
 
 function el(id){return document.getElementById(id);}
-function log(t){ var d=el('dbg'); if(d) d.textContent += '\n• '+t; }
-function step(t){ var s=el('stepmsg'); if(s) s.textContent=t; log(t); }
 function show(html){ el('loading').style.display='none'; el('app').style.display='block'; el('app').innerHTML=html; }
 function fail(msg){ show('<div class="center"><div class="logo">SoilNova</div><p class="muted" style="white-space:pre-wrap">'+msg+'</p></div>'); }
 function render(r){
-  if(!r || !r.ok){ fail('認証に問題が発生しました。\n'+(r&&r.msg?('詳細: '+r.msg):'')); return; }
+  if(!r || !r.ok){ fail('認証に問題が発生しました。時間をおいて再度お試しください。'); return; }
   if(!r.authorized){
     show('<div class="center"><div class="avatar" style="background:#f0e1e1;color:#a32d2d">!</div>'
       +'<div class="logo">権限がありません</div>'
@@ -68,24 +64,14 @@ function jsonp(url){
   });
 }
 
-log('LIFF_ID='+LIFF_ID);
-log('SDK='+(typeof liff==='undefined'?'未読込':'OK'));
-
-if(typeof liff==='undefined'){ fail('LIFF SDKを読み込めませんでした（通信環境をご確認ください）'); }
+if(typeof liff==='undefined'){ fail('読み込みに失敗しました。通信環境をご確認のうえ再度お試しください。'); }
 else{
-  step('① LIFF初期化中…');
   liff.init({liffId:LIFF_ID}).then(function(){
-    step('② ログイン確認中… isLoggedIn='+liff.isLoggedIn());
-    if(!liff.isLoggedIn()){ step('LINEログインへ移動します…'); liff.login(); return; }
-    step('③ IDトークン取得中…');
+    if(!liff.isLoggedIn()){ liff.login(); return; }
     var idToken=liff.getIDToken();
-    log('idToken='+(idToken?('取得OK 長さ'+idToken.length):'null'));
-    if(!idToken){ fail('IDトークンを取得できませんでした。\nLIFFのScopeで openid と profile が有効か確認してください。'); return; }
-    step('④ サーバー認証中…');
-    return jsonp(GAS_API + '?api=liffSummary&idToken=' + encodeURIComponent(idToken)).then(function(r){
-      log('サーバー応答OK'); render(r);
-    });
-  }).catch(function(e){ fail('エラー: '+(e&&e.message||e)); });
+    if(!idToken){ fail('認証情報を取得できませんでした。'); return; }
+    return jsonp(GAS_API + '?api=liffSummary&idToken=' + encodeURIComponent(idToken)).then(render);
+  }).catch(function(e){ fail('エラーが発生しました。時間をおいて再度お試しください。'); });
 }
 </script>
 </body>
