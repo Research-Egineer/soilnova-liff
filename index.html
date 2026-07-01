@@ -34,7 +34,10 @@
   .ok{color:var(--ok);background:var(--ok-bg)} .warn{color:var(--warn);background:var(--warn-bg)} .bad{color:var(--bad);background:var(--bad-bg)}
   .chartcard{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px}
   .chartcard h3{font-size:13px;font-weight:600;margin:0 0 8px;color:var(--ink)}
-  canvas{width:100%!important;height:180px!important}
+  .mrow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .mbtn{font-size:12px;padding:6px 13px;border-radius:16px;border:1px solid #e3e8df;background:#fff;color:var(--muted)}
+  .mbtn.on{background:var(--line);color:#fff;border-color:var(--line)}
+  canvas{width:100%!important;height:200px!important}
   .foot{text-align:center;font-size:11px;color:var(--muted);margin-top:8px}
 </style>
 </head>
@@ -92,7 +95,10 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return
 function fmt(v,n){return v==null?'—':Number(v).toFixed(n==null?1:n);}
 function ago(ms){var s=Math.round((Date.now()-ms)/60000); if(s<1)return'たった今'; if(s<60)return s+'分前'; var h=Math.round(s/60); if(h<24)return h+'時間前'; return Math.round(h/24)+'日前';}
 
-var DEVICES=[],TH=null,sel=0,chart=null;
+var DEVICES=[],TH=null,sel=0,chart=null,selMetric=null;
+function availMetrics(d){ return ['temp','soil','hum','co2'].filter(function(k){return d.caps&&d.caps[k];}); }
+function curMetric(d){ var av=availMetrics(d); if(selMetric&&av.indexOf(selMetric)>=0) return selMetric;
+  return isMoist(d)?(av.indexOf('soil')>=0?'soil':av[0]):(av.indexOf('temp')>=0?'temp':av[0]); }
 
 function metricVal(d,k){ var last=d.series&&d.series[d.series.length-1]; if(!last)return null; var raw=last[F[k]];
   if(k==='soil'&&isMoist(d))return soilPct(raw,d); return raw; }
@@ -113,18 +119,21 @@ function render(){
       +'<div class="v">'+fmt(v,dec(d,k))+'<span class="u"> '+esc(mm.unit)+'</span></div>'
       +(st?'<div class="pill '+st.cls+'">'+st.word+'</div>':'')+'</div>';
   }).join('');
+  var cm=curMetric(d);
+  var mbtns=availMetrics(d).map(function(k){ var mm=metricMeta(d,k); return '<button class="mbtn'+(k===cm?' on':'')+'" data-m="'+k+'">'+esc(mm.label)+'</button>'; }).join('');
   el('app').innerHTML=tabs
     +'<div class="hero"><div class="crop">'+esc(d.crop||d.name||d.id)+'</div>'
       +'<div class="upd">'+(last?('最終更新 '+ago(last[F.t])):'データなし')+'</div></div>'
     +'<div class="grid">'+(tiles||'<div class="tile"><div class="k">センサ</div><div class="v">—</div></div>')+'</div>'
-    +'<div class="chartcard"><h3>推移</h3><canvas id="chart"></canvas></div>'
+    +'<div class="chartcard"><div class="mrow">'+mbtns+'</div><canvas id="chart"></canvas></div>'
     +'<div class="foot">SoilNova ・ くわしい設定はクラシック画面で</div>';
-  Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){ t.onclick=function(){ sel=+t.getAttribute('data-i'); render(); }; });
-  drawChart(d);
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){ t.onclick=function(){ sel=+t.getAttribute('data-i'); selMetric=null; render(); }; });
+  Array.prototype.forEach.call(document.querySelectorAll('.mbtn'),function(b){ b.onclick=function(){ selMetric=b.getAttribute('data-m'); render(); }; });
+  drawChart(d, cm);
 }
 
-function drawChart(d){
-  var pk = isMoist(d) ? 'soil' : (d.caps&&d.caps.temp?'temp':(d.caps&&d.caps.soil?'soil':'co2'));
+function drawChart(d, pk){
+  if(!pk) pk = isMoist(d) ? 'soil' : (d.caps&&d.caps.temp?'temp':(d.caps&&d.caps.soil?'soil':'co2'));
   var mm=metricMeta(d,pk);
   var pts=(d.series||[]).map(function(r){ var raw=r[F[pk]]; var v=(pk==='soil'&&isMoist(d))?soilPct(raw,d):raw; return {x:r[F.t],y:v}; }).filter(function(p){return p.y!=null;});
   var ctx=el('chart'); if(!ctx||!window.Chart)return; if(chart)chart.destroy();
